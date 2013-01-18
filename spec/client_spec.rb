@@ -370,7 +370,7 @@ describe EventMachine::HttpRequest do
     }
   end
 
-  it "should detect deflate encoding" do
+  it "should detect and decode deflate" do
     EventMachine.run {
 
       http = EventMachine::HttpRequest.new('http://127.0.0.1:8090/deflate').get :head => {"accept-encoding" => "deflate"}
@@ -386,7 +386,37 @@ describe EventMachine::HttpRequest do
     }
   end
 
-  it "should detect gzip encoding" do
+  it "should detect and decode raw deflate", :focus => true do
+    EventMachine.run {
+
+      http = EventMachine::HttpRequest.new('http://127.0.0.1:8090/raw-deflate').get :head => {"accept-encoding" => "deflate"}
+
+      http.errback { failed(http) }
+      http.callback {
+        http.response_header.status.should == 200
+        http.response_header["CONTENT_ENCODING"].should == "deflate"
+        http.response.should == "compressed"
+
+        EventMachine.stop
+      }
+    }
+  end
+
+  it "should fail when deflate data is corrupted" do
+    EventMachine.run {
+
+      http = EventMachine::HttpRequest.new('http://127.0.0.1:8090/not-deflate').get :head => {"accept-encoding" => "deflate"}
+
+      http.errback {
+        http.response_header["CONTENT_ENCODING"].should == "deflate"
+        http.error.should == "Content-decoder error"
+        EventMachine.stop
+      }
+      http.callback { failed }
+    }
+  end
+
+  it "should detect and decode gzip" do
     EventMachine.run {
 
       http = EventMachine::HttpRequest.new('http://127.0.0.1:8090/gzip').get :head => {"accept-encoding" => "gzip, compressed"}

@@ -71,8 +71,21 @@ module EventMachine::HttpDecoders
   class Deflate < Base
     def decompress(compressed)
       begin
-        @zstream ||= Zlib::Inflate.new(-Zlib::MAX_WBITS)
+        @zstream ||= Zlib::Inflate.new
         @zstream.inflate(compressed)
+      rescue Zlib::DataError
+        # As noted in the Firefox and Chrome source code, some servers such as
+        # Apache with mod_deflate don't generate zlib headers and send raw
+        # deflate data. As documented in zlib, raw deflated data can be
+        # decompressed by passing the -Zlib::MAX_WBIT argument to the
+        # Zlib::Inflate constructor.
+        if !@zlib_header_added
+          @zlib_header_added = true
+          @zstream = Zlib::Inflate.new(-Zlib::MAX_WBITS)
+          retry
+        else
+          raise DecoderError
+        end
       rescue Zlib::Error
         raise DecoderError
       end
